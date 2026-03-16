@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASL Fingerspelling Trainer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/main.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HOME ════════════════════════════════════════════════════════════════ -->
+  <section id="page-greeting" class="page active">
+    <div class="home-inner">
+
+      <div class="home-hero">
+        <span class="home-eyebrow">American Sign Language</span>
+        <h1 class="home-title">Learn to<br><em>fingerspell</em><br>in ASL</h1>
+        <p class="home-sub">Practice all 26 letters of the ASL alphabet with your webcam. Get instant feedback as you sign.</p>
+        <div class="home-btns">
+          <button class="btn-fill" onclick="App.navigate('practice')">Start Practicing</button>
+          <button class="btn-ghost" onclick="App.navigate('test')">Take a Test</button>
+        </div>
+        <div class="home-pills">
+          <span class="pill">📷 Live Detection</span>
+          <span class="pill">🔤 A – Z Alphabet</span>
+          <span class="pill">📊 Score Tracking</span>
+        </div>
+      </div>
+
+      <div class="home-preview">
+        <div class="preview-card">
+          <div class="preview-label">ASL Alphabet</div>
+          <div class="alpha-strip">
+            <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span>
+            <span>F</span><span>G</span><span>H</span><span>I</span><span>J</span>
+            <span>K</span><span>L</span><span>M</span><span>N</span><span>O</span>
+            <span>P</span><span>Q</span><span>R</span><span>S</span><span>T</span>
+            <span>U</span><span>V</span><span>W</span><span>X</span><span>Y</span>
+            <span>Z</span>
+          </div>
+          <div class="preview-footer">26 letters · Real-time recognition</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ NAV ══════════════════════════════════════════════════════════════════ -->
+  <nav id="main-nav" class="hidden">
+    <button class="nav-home" onclick="App.navigate('greeting')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+      Home
+    </button>
+    <div class="nav-center">
+      <span class="nav-brand">ASL Trainer</span>
+      <div class="nav-switcher">
+        <button id="nav-practice" class="nav-tab" onclick="App.navigate('practice')">Practice</button>
+        <button id="nav-test"     class="nav-tab" onclick="App.navigate('test')">Test</button>
+      </div>
+    </div>
+    <div class="nav-pts">
+      <span class="pts-num" id="nav-score-val">0</span>
+      <span class="pts-lbl">pts</span>
+    </div>
+  </nav>
+
+  <!-- ══ PRACTICE ══════════════════════════════════════════════════════════════ -->
+  <section id="page-practice" class="page">
+    <div class="session-layout">
+
+      <!-- Left: sign card -->
+      <aside class="sign-panel">
+        <div class="sp-header">
+          <h2 class="sp-title">Practice</h2>
+          <div class="prog-wrap">
+            <div class="prog-bar"><div class="prog-fill" id="practice-progress"></div></div>
+            <span class="prog-txt" id="practice-counter">1 / 26</span>
+          </div>
+        </div>
+
+        <div class="sign-card">
+          <div class="sc-letter" id="practice-letter">A</div>
+          <div class="sc-img-wrap">
+            <div class="sc-img" id="practice-svg"></div>
+          </div>
+          <p class="sc-hint" id="practice-hint">Show the sign for "A" to the camera</p>
+        </div>
+
+        <div class="sc-nav">
+          <button class="btn-nav" onclick="Practice.prev()">← Prev</button>
+          <button class="btn-nav" onclick="Practice.skip()">Skip →</button>
+        </div>
+
+        <div class="streak-box">
+          <span class="streak-icon">🔥</span>
+          <span class="streak-txt">Streak</span>
+          <span class="streak-num" id="practice-streak">0</span>
+        </div>
+      </aside>
+
+      <!-- Right: camera -->
+      <div class="cam-panel">
+        <div class="cam-header">
+          <span class="sp-title">Camera</span>
+          <span class="status-chip" id="practice-status">Waiting</span>
+        </div>
+
+        <div class="cam-wrap">
+          <video id="practice-video" autoplay playsinline muted></video>
+          <canvas id="practice-canvas" class="overlay-canvas"></canvas>
+          <canvas id="practice-capture" class="capture-canvas"></canvas>
+          <div class="cam-corners">
+            <b class="cc tl"></b><b class="cc tr"></b>
+            <b class="cc bl"></b><b class="cc br"></b>
+          </div>
+          <div class="detect-ring" id="practice-detect-ring"></div>
+          <div class="cam-badge" id="practice-cam-label">Position your hand in frame</div>
+        </div>
+
+        <div class="det-bar">
+          <span class="det-label">Detected</span>
+          <span class="det-val" id="practice-det-val">—</span>
+          <span class="det-status" id="practice-status-side"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ TEST ══════════════════════════════════════════════════════════════════ -->
+  <section id="page-test" class="page">
+    <div class="session-layout">
+
+      <!-- Left: test card -->
+      <aside class="sign-panel">
+        <div class="sp-header">
+          <h2 class="sp-title">Test</h2>
+          <div class="prog-wrap">
+            <div class="prog-bar"><div class="prog-fill" id="test-progress"></div></div>
+            <span class="prog-txt" id="test-counter">1 / 26</span>
+          </div>
+        </div>
+
+        <div class="sign-card test-sign-card">
+          <p class="test-prompt">Show the sign for:</p>
+          <div class="sc-letter test-sc-letter" id="test-letter">A</div>
+          <p class="test-sub-hint">Hold the sign steady for a moment</p>
+        </div>
+
+        <div class="score-strip">
+          <div class="ss-cell">
+            <div class="ss-num" id="test-correct-count">0</div>
+            <div class="ss-lbl">Correct</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-cell">
+            <div class="ss-num" id="test-wrong-count">0</div>
+            <div class="ss-lbl">Wrong</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-cell">
+            <div class="ss-num" id="test-total-count">0</div>
+            <div class="ss-lbl">Total</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right: camera -->
+      <div class="cam-panel">
+        <div class="cam-header">
+          <span class="sp-title">Camera</span>
+          <span class="status-chip" id="test-status">Waiting</span>
+        </div>
+
+        <div class="cam-wrap">
+          <video id="test-video" autoplay playsinline muted></video>
+          <canvas id="test-canvas" class="overlay-canvas"></canvas>
+          <canvas id="test-capture" class="capture-canvas"></canvas>
+          <div class="cam-corners">
+            <b class="cc tl"></b><b class="cc tr"></b>
+            <b class="cc bl"></b><b class="cc br"></b>
+          </div>
+          <div class="detect-ring" id="test-detect-ring"></div>
+          <div class="cam-badge" id="test-cam-label">Show the sign</div>
+        </div>
+
+        <div class="det-bar">
+          <span class="det-label">Detected</span>
+          <span class="det-val" id="test-det-val">—</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ RESULT FLASH ══════════════════════════════════════════════════════════ -->
+  <div id="result-overlay" class="modal-backdrop hidden">
+    <div class="result-card" id="result-card">
+      <div class="rc-icon" id="result-icon">✓</div>
+      <div class="rc-title" id="result-title">Correct!</div>
+      <div class="rc-sub" id="result-sub">Moving to next sign…</div>
+      <div class="rc-letter" id="result-letter"></div>
+    </div>
+  </div>
+
+  <!-- ══ COMPLETE ══════════════════════════════════════════════════════════════ -->
+  <div id="complete-overlay" class="modal-backdrop hidden">
+    <div class="complete-card">
+      <div class="cc-emoji">🎉</div>
+      <h2 class="cc-title" id="complete-title">Session Complete!</h2>
+      <p class="cc-sub" id="complete-sub">You signed all 26 letters!</p>
+      <div class="cc-stats" id="complete-stats"></div>
+      <div class="cc-actions">
+        <button class="btn-fill" id="complete-retry">Try Again</button>
+        <button class="btn-ghost" onclick="App.navigate('greeting')">Home</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="/static/js/asl-signs.js"></script>
+<script src="/static/js/camera.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
