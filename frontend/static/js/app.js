@@ -1,13 +1,3 @@
-/**
- * ASL Fingerspelling Trainer — App Logic
- * Practice mode: show sign image + letter, hold correct sign to advance
- * Test mode: show letter only, detect once → score or no score → auto-advance
- */
-
-// ══════════════════════════════════════════════════════════════════════════
-// Navigation
-// ══════════════════════════════════════════════════════════════════════════
-
 const App = (() => {
   let currentPage = 'greeting';
   let totalScore  = 0;
@@ -45,19 +35,17 @@ const App = (() => {
   return { navigate, addScore, get currentPage() { return currentPage; } };
 })();
 
-
-// ══════════════════════════════════════════════════════════════════════════
-// Practice Mode
-// Hold the correct sign for 3 consecutive detections to advance.
-// ══════════════════════════════════════════════════════════════════════════
-
 const Practice = (() => {
   let currentIdx         = 0;
   let streak             = 0;
   let correctCount       = 0;
   let locked             = false;
   let consecutiveCorrect = 0;
-  const CORRECT_NEEDED   = 3;
+  
+  const CORRECT_NEEDED   = 6;
+  let warmupFrames       = 0;
+  const WARMUP_NEEDED    = 12;
+
   const MODE             = 'practice';
 
   function start() {
@@ -66,6 +54,7 @@ const Practice = (() => {
     correctCount       = 0;
     locked             = false;
     consecutiveCorrect = 0;
+    warmupFrames       = 0;
     updateDisplay();
     initCamera();
   }
@@ -96,7 +85,15 @@ const Practice = (() => {
       ring.className       = 'detect-ring';
       camLabel.textContent = 'Position your hand in frame';
       consecutiveCorrect   = 0;
+      warmupFrames         = 0;
       setStatus('detecting');
+      return;
+    }
+
+    if (warmupFrames < WARMUP_NEEDED) {
+      warmupFrames++;
+      ring.className       = 'detect-ring';
+      camLabel.textContent = 'Get ready...';
       return;
     }
 
@@ -132,13 +129,14 @@ const Practice = (() => {
     document.getElementById('practice-streak').textContent = streak;
     App.addScore(10);
     showResult('correct', ASL_CURRICULUM[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 1200);
+    setTimeout(() => { hideResult(); advance(); }, 2500);
   }
 
   function advance() {
     currentIdx++;
     locked             = false;
     consecutiveCorrect = 0;
+    warmupFrames       = 0;
     if (currentIdx >= ASL_CURRICULUM.length) { showComplete(); return; }
     updateDisplay();
   }
@@ -148,6 +146,7 @@ const Practice = (() => {
       currentIdx--;
       locked             = false;
       consecutiveCorrect = 0;
+      warmupFrames       = 0;
       updateDisplay();
     }
   }
@@ -157,6 +156,7 @@ const Practice = (() => {
     document.getElementById('practice-streak').textContent = streak;
     locked             = false;
     consecutiveCorrect = 0;
+    warmupFrames       = 0;
     advance();
   }
 
@@ -197,26 +197,18 @@ const Practice = (() => {
   return { start, cleanup, prev, skip };
 })();
 
-
-// ══════════════════════════════════════════════════════════════════════════
-// Test Mode — SIMPLIFIED
-//
-// Rules (per user request):
-//   - Show the letter only (no sign image)
-//   - Wait for 3 consecutive correct detections → score 10 pts → next letter
-//   - If user holds a WRONG sign for 3 consecutive detections → 0 pts → next
-//   - No tries counter, no hint images, no retry logic
-//   - Letters are shuffled randomly
-// ══════════════════════════════════════════════════════════════════════════
-
 const Test = (() => {
   let currentIdx         = 0;
   let correct            = 0;
   let wrong              = 0;
   let locked             = false;
-  let consecutiveMatch   = 0;  // consecutive same-label detections (correct or wrong)
+  let consecutiveMatch   = 0;  
   let lastSeen           = null;
-  const HOLD_NEEDED      = 3;  // frames to hold a sign before it counts
+  
+  const HOLD_NEEDED      = 6;  
+  let warmupFrames       = 0;
+  const WARMUP_NEEDED    = 12;
+
   const MODE             = 'test';
   let curriculum         = [];
 
@@ -237,6 +229,7 @@ const Test = (() => {
     locked             = false;
     consecutiveMatch   = 0;
     lastSeen           = null;
+    warmupFrames       = 0;
     updateDisplay();
     initCamera();
   }
@@ -268,7 +261,15 @@ const Test = (() => {
       camLabel.textContent = `Show the sign for: ${target}`;
       consecutiveMatch     = 0;
       lastSeen             = null;
+      warmupFrames         = 0;
       setStatus('detecting');
+      return;
+    }
+
+    if (warmupFrames < WARMUP_NEEDED) {
+      warmupFrames++;
+      ring.className       = 'detect-ring';
+      camLabel.textContent = 'Get ready...';
       return;
     }
 
@@ -285,7 +286,6 @@ const Test = (() => {
       return;
     }
 
-    // Count consecutive frames showing the same label
     if (detected === lastSeen) {
       consecutiveMatch++;
     } else {
@@ -303,7 +303,6 @@ const Test = (() => {
       setStatus('detecting');
     }
 
-    // After holding any sign for HOLD_NEEDED frames → commit result
     if (consecutiveMatch >= HOLD_NEEDED) {
       consecutiveMatch = 0;
       lastSeen         = null;
@@ -321,7 +320,7 @@ const Test = (() => {
     App.addScore(10);
     updateScores();
     showResult('correct', curriculum[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 1000);
+    setTimeout(() => { hideResult(); advance(); }, 2500);
   }
 
   function onWrong() {
@@ -329,7 +328,7 @@ const Test = (() => {
     wrong++;
     updateScores();
     showResult('wrong', curriculum[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 1000);
+    setTimeout(() => { hideResult(); advance(); }, 2500);
   }
 
   function advance() {
@@ -337,6 +336,7 @@ const Test = (() => {
     locked           = false;
     consecutiveMatch = 0;
     lastSeen         = null;
+    warmupFrames     = 0;
     if (currentIdx >= curriculum.length) { showComplete(); return; }
     updateDisplay();
   }
@@ -385,11 +385,6 @@ const Test = (() => {
   return { start, cleanup };
 })();
 
-
-// ══════════════════════════════════════════════════════════════════════════
-// Result Overlay
-// ══════════════════════════════════════════════════════════════════════════
-
 function showResult(type, letter) {
   const overlay  = document.getElementById('result-overlay');
   const icon     = document.getElementById('result-icon');
@@ -426,10 +421,6 @@ function showCameraError(mode) {
     label.style.color = '#b91c1c';
   }
 }
-
-// ══════════════════════════════════════════════════════════════════════════
-// Init
-// ══════════════════════════════════════════════════════════════════════════
 
 window.addEventListener('load', async () => {
   const ok = await Camera.checkBackend().catch(() => false);

@@ -1,23 +1,10 @@
 /**
- * Camera Module — no-flicker version
- *
- * Architecture:
- *   - #mode-video       : live webcam feed (CSS-mirrored via transform)
- *   - #mode-canvas      : DISPLAY overlay — landmarks + confidence UI
- *                         drawn on top of the video, never cleared to blank
- *   - #mode-capture     : HIDDEN off-screen canvas — used only to grab a
- *                         mirrored JPEG frame for the backend API call
- *                         Never visible to the user at all.
- *
- * The flicker in the old code was caused by using a single canvas for both
- * capture and display — it blanked every frame between API calls.
- * Now the display canvas is ONLY ever drawn to (never cleared to empty),
- * so overlays stay on screen at all times.
+ * Camera Module — optimized for speed, no-flicker version
  */
 
 const Camera = (() => {
   const API_URL        = 'http://localhost:5000/api/detect';
-  const DETECT_INTERVAL = 320;   // ms between API calls
+  const DETECT_INTERVAL = 80;   // Decreased from 320ms for much faster detection
 
   let streams   = {};
   let timers    = {};
@@ -25,7 +12,7 @@ const Camera = (() => {
   let running   = {};
 
   // Last known overlay state per mode — redrawn every animation frame
-  let lastResult = {};   // { practice: data, test: data }
+  let lastResult = {};   
 
   // Animation frame IDs
   let rafIds = {};
@@ -53,9 +40,9 @@ const Camera = (() => {
       overlay.width  = W;
       overlay.height = H;
 
-      // Capture canvas — off-screen, mirrored (same as old approach)
-      capture.width  = W;
-      capture.height = H;
+      // Capture canvas — shrunk to 50% for lightweight API payloads
+      capture.width  = Math.floor(W / 2);
+      capture.height = Math.floor(H / 2);
 
       running[mode]    = true;
       lastResult[mode] = null;
@@ -100,8 +87,6 @@ const Camera = (() => {
   }
 
   // ── Render loop — runs at ~60fps independent of API calls ─────────────
-  // Continuously redraws the overlay from the last known result.
-  // Because it never clears to blank (it just redraws), there is no flicker.
   function startRenderLoop(mode) {
     if (rafIds[mode]) cancelAnimationFrame(rafIds[mode]);
 
@@ -135,14 +120,15 @@ const Camera = (() => {
       return { label: null, hand_detected: false, error: 'not ready' };
     }
 
-    // Draw mirrored frame to HIDDEN capture canvas
+    // Draw mirrored frame to HIDDEN downscaled capture canvas
     const ctx = capture.getContext('2d');
     ctx.save();
     ctx.scale(-1, 1);
     ctx.drawImage(video, -capture.width, 0, capture.width, capture.height);
     ctx.restore();
 
-    const frameData = capture.toDataURL('image/jpeg', 0.72);
+    // Compress to 0.60 for faster network transmission
+    const frameData = capture.toDataURL('image/jpeg', 0.60);
 
     try {
       const res = await fetch(API_URL, {
@@ -173,7 +159,6 @@ const Camera = (() => {
     const ctx = canvas.getContext('2d');
     const W   = canvas.width;
 
-    // Lines
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth   = 1.8;
     for (const [a, b] of CONNECTIONS) {
@@ -184,7 +169,6 @@ const Camera = (() => {
       ctx.stroke();
     }
 
-    // Dots
     for (let i = 0; i < lm.length; i++) {
       const x = W - lm[i][0];
       const y = lm[i][1];
@@ -210,23 +194,19 @@ const Camera = (() => {
     const pct  = Math.round((conf || 0) * 100);
     const col  = pct >= 70 ? '#4ade80' : pct >= 45 ? '#fbbf24' : '#f87171';
 
-    // Badge background
     ctx.fillStyle = 'rgba(0,0,0,0.60)';
     _rr(ctx, 10, 10, 96, 58, 8);
     ctx.fill();
 
-    // Big letter
     ctx.font         = 'bold 34px Georgia, serif';
     ctx.fillStyle    = '#ffffff';
     ctx.textBaseline = 'top';
     ctx.fillText(label, 18, 14);
 
-    // Confidence %
     ctx.font      = 'bold 13px system-ui, sans-serif';
     ctx.fillStyle = col;
     ctx.fillText(`${pct}%`, 54, 18);
 
-    // Top-5 bar chart
     if (!scores || !Object.keys(scores).length) return;
     const top5 = Object.entries(scores).sort((a,b) => b[1]-a[1]).slice(0, 5);
 
@@ -237,22 +217,18 @@ const Camera = (() => {
       const top = i === 0;
       const pc  = Math.round(score * 100);
 
-      // Track
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       _rr(ctx, bx, y, bw + 28, bh, 4);
       ctx.fill();
 
-      // Fill
       ctx.fillStyle = top ? (pct >= 70 ? 'rgba(74,222,128,0.7)' : pct >= 45 ? 'rgba(251,191,36,0.7)' : 'rgba(248,113,113,0.7)') : 'rgba(255,255,255,0.2)';
       if (fw > 4) { _rr(ctx, bx, y, fw, bh, 4); ctx.fill(); }
 
-      // Letter
       ctx.font         = top ? 'bold 11px system-ui' : '11px system-ui';
       ctx.fillStyle    = '#fff';
       ctx.textBaseline = 'middle';
       ctx.fillText(letter, bx + 5, y + bh / 2);
 
-      // %
       ctx.font      = '10px system-ui';
       ctx.fillStyle = top ? '#fff' : 'rgba(255,255,255,0.6)';
       ctx.fillText(`${pc}%`, bx + bw - 2, y + bh / 2);
