@@ -20,8 +20,8 @@
         <h1 class="home-title">Learn to<br><em>fingerspell</em><br>in ASL</h1>
         <p class="home-sub">Practice all 26 letters of the ASL alphabet with your webcam. Get instant feedback as you sign.</p>
         <div class="home-btns">
-          <button class="btn-fill" onclick="App.navigate('practice')">Start Practicing</button>
-          <button class="btn-ghost" onclick="App.navigate('test')">Take a Test</button>
+          <button class="btn-fill" onclick="App.navigate('teaching')">Start Teaching</button>
+          <button class="btn-ghost" onclick="App.navigate('practicing')">Start Practicing</button>
         </div>
         <div class="home-pills">
           <span class="pill">📷 Live Detection</span>
@@ -57,47 +57,72 @@
     <div class="nav-center">
       <span class="nav-brand">ASL Trainer</span>
       <div class="nav-switcher">
-        <button id="nav-practice" class="nav-tab" onclick="App.navigate('practice')">Practice</button>
-        <button id="nav-test"     class="nav-tab" onclick="App.navigate('test')">Test</button>
+        <button id="nav-teaching" class="nav-tab" onclick="App.navigate('teaching')">Teaching</button>
+        <button id="nav-practicing" class="nav-tab" onclick="App.navigate('practicing')">Practicing</button>
       </div>
     </div>
-    <div class="nav-pts">
+    <div class="nav-pts" id="nav-pts">
       <span class="pts-num" id="nav-score-val">0</span>
       <span class="pts-lbl">pts</span>
     </div>
   </nav>
 
-  <!-- ══ PRACTICE ══════════════════════════════════════════════════════════════ -->
-  <section id="page-practice" class="page">
-    <div class="session-layout">
-
+  <!-- ══ TEACHING ══════════════════════════════════════════════════════════════ -->
+  <section id="page-teaching" class="page">
+    
+    <!-- MENU STATE -->
+    <div id="teaching-menu-view" class="session-layout">
+      <!-- Left: Modules -->
+      <aside class="sign-panel">
+        <div class="sp-header">
+          <h2 class="sp-title">Teaching Modules</h2>
+        </div>
+        <div class="modules-list" id="teaching-modules">
+           <button class="module-btn active" onclick="Teaching.selectModule('characters')">Module 1: Characters</button>
+           <button class="module-btn" onclick="Teaching.selectModule('words')">Module 2: Words</button>
+           <button class="module-btn" onclick="Teaching.selectModule('sentences')">Module 3: Sentences</button>
+        </div>
+      </aside>
+      
+      <!-- Right: Items menu -->
+      <div class="cam-panel" style="overflow-y: auto;">
+        <div class="cam-header">
+           <span class="sp-title" id="teaching-menu-title">Select an item</span>
+        </div>
+        <div class="items-grid" id="teaching-items-grid">
+           <!-- populated by JS -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- ACTIVE STATE -->
+    <div id="teaching-active-view" class="session-layout hidden">
       <!-- Left: sign card -->
       <aside class="sign-panel">
         <div class="sp-header">
-          <h2 class="sp-title">Practice</h2>
+          <button class="btn-nav" style="flex: 0; padding: 4px 10px;" onclick="Teaching.showMenu()">← Back</button>
+          <h2 class="sp-title">Teaching</h2>
           <div class="prog-wrap">
-            <div class="prog-bar"><div class="prog-fill" id="practice-progress"></div></div>
-            <span class="prog-txt" id="practice-counter">1 / 26</span>
+            <div class="prog-bar"><div class="prog-fill" id="teaching-progress"></div></div>
+            <span class="prog-txt" id="teaching-counter">1 / 26</span>
           </div>
         </div>
 
         <div class="sign-card">
-          <div class="sc-letter" id="practice-letter">A</div>
+          <div class="sc-letter" id="teaching-letter">A</div>
           <div class="sc-img-wrap">
-            <div class="sc-img" id="practice-svg"></div>
+            <div class="sc-img" id="teaching-svg"></div>
           </div>
-          <p class="sc-hint" id="practice-hint">Show the sign for "A" to the camera</p>
+          <p class="sc-hint" id="teaching-hint">Show the sign to the camera</p>
+        </div>
+
+        <div class="textframes-container" id="teaching-textframes">
+           <!-- Grey/Green blocks populated by JS -->
         </div>
 
         <div class="sc-nav">
-          <button class="btn-nav" onclick="Practice.prev()">← Prev</button>
-          <button class="btn-nav" onclick="Practice.skip()">Skip →</button>
-        </div>
-
-        <div class="streak-box">
-          <span class="streak-icon">🔥</span>
-          <span class="streak-txt">Streak</span>
-          <span class="streak-num" id="practice-streak">0</span>
+          <button class="btn-nav" id="teaching-prev-btn" onclick="Teaching.prev()">← Prev</button>
+          <button class="btn-nav" id="teaching-skip-btn" onclick="Teaching.skip()">Skip →</button>
         </div>
       </aside>
 
@@ -105,65 +130,65 @@
       <div class="cam-panel">
         <div class="cam-header">
           <span class="sp-title">Camera</span>
-          <span class="status-chip" id="practice-status">Waiting</span>
+          <span class="status-chip" id="teaching-status">Waiting</span>
         </div>
 
         <div class="cam-wrap">
-          <video id="practice-video" autoplay playsinline muted></video>
-          <canvas id="practice-canvas" class="overlay-canvas"></canvas>
-          <canvas id="practice-capture" class="capture-canvas"></canvas>
+          <video id="teaching-video" autoplay playsinline muted></video>
+          <canvas id="teaching-canvas" class="overlay-canvas"></canvas>
+          <canvas id="teaching-capture" class="capture-canvas"></canvas>
           <div class="cam-corners">
             <b class="cc tl"></b><b class="cc tr"></b>
             <b class="cc bl"></b><b class="cc br"></b>
           </div>
-          <div class="detect-ring" id="practice-detect-ring"></div>
-          <div class="cam-badge" id="practice-cam-label">Position your hand in frame</div>
+          <div class="detect-ring" id="teaching-detect-ring"></div>
+          <div class="cam-badge" id="teaching-cam-label">Position your hand in frame</div>
+          
+          <div class="accuracy-overlay hidden" id="teaching-accuracy-overlay">0%</div>
         </div>
 
         <div class="det-bar">
           <span class="det-label">Detected</span>
-          <span class="det-val" id="practice-det-val">—</span>
-          <span class="det-status" id="practice-status-side"></span>
+          <span class="det-val" id="teaching-det-val">—</span>
+          <span class="det-status" id="teaching-status-side"></span>
         </div>
       </div>
 
     </div>
   </section>
 
-  <!-- ══ TEST ══════════════════════════════════════════════════════════════════ -->
-  <section id="page-test" class="page">
+  <!-- ══ PRACTICING ══════════════════════════════════════════════════════════════ -->
+  <section id="page-practicing" class="page">
     <div class="session-layout">
 
       <!-- Left: test card -->
       <aside class="sign-panel">
         <div class="sp-header">
-          <h2 class="sp-title">Test</h2>
+          <h2 class="sp-title">Practicing</h2>
           <div class="prog-wrap">
-            <div class="prog-bar"><div class="prog-fill" id="test-progress"></div></div>
-            <span class="prog-txt" id="test-counter">1 / 26</span>
+            <div class="prog-bar"><div class="prog-fill" id="practicing-progress"></div></div>
+            <span class="prog-txt" id="practicing-counter">1 / 21</span>
           </div>
         </div>
 
-        <div class="sign-card test-sign-card">
-          <p class="test-prompt">Show the sign for:</p>
-          <div class="sc-letter test-sc-letter" id="test-letter">A</div>
-          <p class="test-sub-hint">Hold the sign steady for a moment</p>
+        <div class="sign-card test-sign-card" style="align-items: center; justify-content: center;">
+          <p class="test-prompt" style="align-self: center;">Show the sign for:</p>
+          <div class="sc-letter test-sc-letter" id="practicing-letter" style="font-size: 50px !important; text-align: center; align-self: center;">A</div>
+          <div class="textframes-container" id="practicing-textframes">
+             <!-- Grey/Green/Red blocks populated by JS -->
+          </div>
+          <p class="test-sub-hint" id="practicing-timer-hint" style="margin-top: auto; font-weight: 600;">Time left: 4.0s</p>
         </div>
 
         <div class="score-strip">
           <div class="ss-cell">
-            <div class="ss-num" id="test-correct-count">0</div>
-            <div class="ss-lbl">Correct</div>
+            <div class="ss-num" id="practicing-correct-count">0</div>
+            <div class="ss-lbl">Points</div>
           </div>
           <div class="ss-divider"></div>
           <div class="ss-cell">
-            <div class="ss-num" id="test-wrong-count">0</div>
-            <div class="ss-lbl">Wrong</div>
-          </div>
-          <div class="ss-divider"></div>
-          <div class="ss-cell">
-            <div class="ss-num" id="test-total-count">0</div>
-            <div class="ss-lbl">Total</div>
+            <div class="ss-num" id="practicing-total-count">0</div>
+            <div class="ss-lbl">Possible</div>
           </div>
         </div>
       </aside>
@@ -172,29 +197,38 @@
       <div class="cam-panel">
         <div class="cam-header">
           <span class="sp-title">Camera</span>
-          <span class="status-chip" id="test-status">Waiting</span>
+          <span class="status-chip" id="practicing-status">Waiting</span>
         </div>
 
         <div class="cam-wrap">
-          <video id="test-video" autoplay playsinline muted></video>
-          <canvas id="test-canvas" class="overlay-canvas"></canvas>
-          <canvas id="test-capture" class="capture-canvas"></canvas>
+          <video id="practicing-video" autoplay playsinline muted></video>
+          <canvas id="practicing-canvas" class="overlay-canvas"></canvas>
+          <canvas id="practicing-capture" class="capture-canvas"></canvas>
           <div class="cam-corners">
             <b class="cc tl"></b><b class="cc tr"></b>
             <b class="cc bl"></b><b class="cc br"></b>
           </div>
-          <div class="detect-ring" id="test-detect-ring"></div>
-          <div class="cam-badge" id="test-cam-label">Show the sign</div>
+          <div class="detect-ring" id="practicing-detect-ring"></div>
+          <div class="cam-badge" id="practicing-cam-label">Show the sign</div>
         </div>
 
         <div class="det-bar">
           <span class="det-label">Detected</span>
-          <span class="det-val" id="test-det-val">—</span>
+          <span class="det-val" id="practicing-det-val">—</span>
         </div>
       </div>
 
     </div>
   </section>
+
+  <!-- ══ STARTUP OVERLAY ═════════════════════════════════════════════════════ -->
+  <div id="startup-overlay" class="modal-backdrop">
+    <div class="result-card">
+      <div class="rc-icon" style="animation: pulse 1.5s infinite;">⏳</div>
+      <div class="rc-title" style="font-size: 22px;">Warming up AI Model...</div>
+      <div class="rc-sub">This usually takes around 6 seconds.</div>
+    </div>
+  </div>
 
   <!-- ══ RESULT FLASH ══════════════════════════════════════════════════════════ -->
   <div id="result-overlay" class="modal-backdrop hidden">

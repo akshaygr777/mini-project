@@ -1,432 +1,579 @@
+// frontend/static/js/app.js
+
+const CURRICULUM = {
+  characters: [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
+  words: ["I","LOVE","YOU","HELP","ME","PLEASE","HAVE","A","GOOD","DAY","SHE","HAS","CAT","HE","DOG","WE","READ","BOOK","THEY","DRINK","WATER","EAT","FOOD","HELLO","HOW","ARE","YES","CAN","NO","THANK"],
+  sentences: ["I LOVE YOU", "HELP ME PLEASE", "HAVE A GOOD DAY", "SHE HAS A CAT", "HE HAS A DOG", "WE READ A BOOK", "THEY DRINK WATER", "I EAT GOOD FOOD", "HELLO HOW ARE YOU", "YES I CAN", "NO THANK YOU", "CAN YOU HELP ME", "I HAVE A BOOK", "THEY EAT FOOD", "I LOVE A GOOD DOG", "SHE DRINK WATER", "WE HAVE A CAT", "PLEASE READ BOOK", "HELLO GOOD DAY", "CAN WE EAT FOOD"]
+};
+
 const App = (() => {
   let currentPage = 'greeting';
-  let totalScore  = 0;
 
-  function navigate(page) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  function init() {
+    navigate('greeting');
+  }
 
-    if (currentPage === 'practice') Practice.cleanup();
-    if (currentPage === 'test')     Test.cleanup();
-
-    currentPage = page;
-
-    const pageEl = document.getElementById(`page-${page}`);
-    if (pageEl) pageEl.classList.add('active');
+  function navigate(pageId) {
+    document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.add('active');
 
     const nav = document.getElementById('main-nav');
-    if (page === 'greeting') {
+    if (pageId === 'greeting') {
       nav.classList.add('hidden');
+      Teaching.stop();
+      Practicing.stop();
     } else {
       nav.classList.remove('hidden');
-      const tab = document.getElementById(`nav-${page}`);
-      if (tab) tab.classList.add('active');
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('nav-' + pageId).classList.add('active');
+      
+      if (pageId === 'teaching') {
+        Practicing.stop();
+        Teaching.start();
+      } else if (pageId === 'practicing') {
+        Teaching.stop();
+        Practicing.start();
+      }
     }
-
-    if (page === 'practice') setTimeout(() => Practice.start(), 100);
-    if (page === 'test')     setTimeout(() => Test.start(), 100);
+    
+    currentPage = pageId;
   }
 
-  function addScore(pts) {
-    totalScore += pts;
-    document.getElementById('nav-score-val').textContent = totalScore;
-  }
-
-  return { navigate, addScore, get currentPage() { return currentPage; } };
+  return { init, navigate, get currentPage() { return currentPage; } };
 })();
 
-const Practice = (() => {
-  let currentIdx         = 0;
-  let streak             = 0;
-  let correctCount       = 0;
-  let locked             = false;
-  let consecutiveCorrect = 0;
+// ---------------------------------------------------------
+// TEACHING MODE
+// ---------------------------------------------------------
+const Teaching = (() => {
+  const MODE = 'teaching';
+  let active = false;
+  let currentModule = 'characters';
+  let currentIndex = 0;
   
-  const CORRECT_NEEDED   = 6;
-  let warmupFrames       = 0;
-  const WARMUP_NEEDED    = 12;
-
-  const MODE             = 'practice';
+  let currentTarget = "";
+  let targetChars = [];
+  let charIndex = 0;
+  let consecutiveCorrect = 0;
+  const REQUIRED_FRAMES = 6;
+  let locked = false;
 
   function start() {
-    currentIdx         = 0;
-    streak             = 0;
-    correctCount       = 0;
-    locked             = false;
+    active = true;
+    showMenu();
+    selectModule(currentModule);
+    document.getElementById('nav-pts').style.display = 'none';
+  }
+
+  function stop() {
+    active = false;
+    Camera.stop(MODE);
+  }
+
+  function showMenu() {
+    Camera.stop(MODE);
+    document.getElementById('teaching-menu-view').classList.remove('hidden');
+    document.getElementById('teaching-active-view').classList.add('hidden');
+  }
+
+  function selectModule(modId) {
+    currentModule = modId;
+    
+    document.querySelectorAll('#teaching-modules .module-btn').forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.innerText.toLowerCase().includes(modId.slice(0, 4))) {
+        btn.classList.add('active');
+      }
+    });
+    
+    let title = "Characters";
+    if (modId === 'words') title = "Words";
+    if (modId === 'sentences') title = "Sentences";
+    document.getElementById('teaching-menu-title').innerText = title;
+    
+    const grid = document.getElementById('teaching-items-grid');
+    grid.innerHTML = "";
+    const items = CURRICULUM[modId];
+    
+    items.forEach((item, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'item-btn';
+      btn.innerText = item;
+      btn.onclick = () => startItem(idx);
+      grid.appendChild(btn);
+    });
+  }
+
+  function startItem(index) {
+    currentIndex = index;
+    const items = CURRICULUM[currentModule];
+    if (index < 0 || index >= items.length) {
+      showMenu();
+      return;
+    }
+    
+    currentTarget = items[index];
+    targetChars = currentTarget.replace(/ /g, '').split(''); 
+    charIndex = 0;
     consecutiveCorrect = 0;
-    warmupFrames       = 0;
-    updateDisplay();
+    locked = false;
+    
+    document.getElementById('teaching-menu-view').classList.add('hidden');
+    document.getElementById('teaching-active-view').classList.remove('hidden');
+    
+    updateUI();
     initCamera();
   }
-
+  
   async function initCamera() {
     const ok = await Camera.init(MODE);
-    if (!ok) { showCameraError(MODE); return; }
+    if (!ok) { console.error("Camera init failed"); return; }
     Camera.startDetection(MODE, handleDetection);
-    setStatus('detecting');
   }
 
-  function cleanup() {
-    Camera.stop(MODE);
-    locked = false;
+  function updateUI() {
+    const items = CURRICULUM[currentModule];
+    
+    document.getElementById('teaching-counter').innerText = `${currentIndex + 1} / ${items.length}`;
+    document.getElementById('teaching-progress').style.width = `${((currentIndex) / items.length) * 100}%`;
+    document.getElementById('teaching-letter').innerText = currentTarget;
+    
+    const char = targetChars[charIndex];
+    if(window.ASL_IMAGES && window.ASL_IMAGES[char]) {
+      document.getElementById('teaching-svg').innerHTML = `<img src="${window.ASL_IMAGES[char]}" alt="${char}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;"/>`;
+    } else {
+      document.getElementById('teaching-svg').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:4rem;color:#94a3b8;">${char || ''}</div>`;
+    }
+    
+    const tfContainer = document.getElementById('teaching-textframes');
+    tfContainer.innerHTML = "";
+    targetChars.forEach((c, idx) => {
+      const sp = document.createElement('div');
+      sp.className = 'textframe';
+      sp.id = `teach-tf-${idx}`;
+      sp.innerText = c;
+      if (idx < charIndex) {
+        sp.classList.add('correct');
+      } else if (idx === charIndex) {
+         sp.style.borderColor = "#3b82f6";
+         sp.style.borderWidth = "2px";
+      }
+      tfContainer.appendChild(sp);
+    });
+    
+    const overlay = document.getElementById('teaching-accuracy-overlay');
+    overlay.classList.remove('hidden');
+    overlay.innerText = "0%";
+    overlay.classList.remove('correct');
+    
+    const statusChip = document.getElementById('teaching-status');
+    statusChip.innerText = `Waiting for ${char || ''}`;
+    statusChip.className = "status-chip";
+    document.getElementById('teaching-status-side').innerText = "";
+    document.getElementById('teaching-det-val').innerText = "—";
+    document.getElementById('teaching-detect-ring').className = "detect-ring";
   }
 
   function handleDetection(result) {
-    if (locked) return;
+    if (!active || locked) return;
+    
+    const char = targetChars[charIndex];
+    if (!char) return;
 
-    const target   = ASL_CURRICULUM[currentIdx];
-    const detVal   = document.getElementById('practice-det-val');
-    const ring     = document.getElementById('practice-detect-ring');
-    const camLabel = document.getElementById('practice-cam-label');
+    const detVal = document.getElementById('teaching-det-val');
+    const statusChip = document.getElementById('teaching-status');
+    const statusSide = document.getElementById('teaching-status-side');
+    const ring = document.getElementById('teaching-detect-ring');
+    const overlay = document.getElementById('teaching-accuracy-overlay');
 
     if (!result.hand_detected || result.error) {
-      detVal.textContent   = '—';
-      detVal.className     = 'det-val';
-      ring.className       = 'detect-ring';
-      camLabel.textContent = 'Position your hand in frame';
-      consecutiveCorrect   = 0;
-      warmupFrames         = 0;
-      setStatus('detecting');
-      return;
-    }
-
-    if (warmupFrames < WARMUP_NEEDED) {
-      warmupFrames++;
-      ring.className       = 'detect-ring';
-      camLabel.textContent = 'Get ready...';
-      return;
-    }
-
-    const detected = result.label;
-    const conf     = result.confidence || 0;
-
-    ring.className       = 'detect-ring hand-found';
-    camLabel.textContent = detected ? `Seeing: ${detected} (${Math.round(conf * 100)}%)` : 'Hand detected';
-    detVal.textContent   = detected || '?';
-
-    if (detected === target) {
-      detVal.className = 'det-val match';
-      ring.className   = 'detect-ring correct';
-      consecutiveCorrect++;
-      setStatus('correct');
-
-      if (consecutiveCorrect >= CORRECT_NEEDED) {
-        consecutiveCorrect = 0;
-        onCorrect();
-      }
+      detVal.innerText = "—";
+      statusChip.innerText = "No hand detected";
+      statusChip.className = "status-chip warning";
+      ring.className = "detect-ring warning";
+      statusSide.innerText = "";
+      consecutiveCorrect = Math.max(0, consecutiveCorrect - 1);
     } else {
-      detVal.className   = 'det-val no-match';
-      ring.className     = 'detect-ring hand-found';
-      consecutiveCorrect = 0;
-      setStatus('detecting');
+      detVal.innerText = result.label;
+      
+      if (result.label && result.label.toUpperCase() === char.toUpperCase()) {
+        consecutiveCorrect++;
+        statusChip.innerText = `Detected ${char}! Hold...`;
+        statusChip.className = "status-chip success";
+        ring.className = "detect-ring success";
+        statusSide.innerText = "✓";
+        statusSide.style.color = "#10b981";
+      } else {
+        consecutiveCorrect = Math.max(0, consecutiveCorrect - 1);
+        statusChip.innerText = "Incorrect sign";
+        statusChip.className = "status-chip error";
+        ring.className = "detect-ring error";
+        statusSide.innerText = "✗";
+        statusSide.style.color = "#ef4444";
+      }
+    }
+    
+    let accuracy = Math.min(100, Math.round((consecutiveCorrect / REQUIRED_FRAMES) * 100));
+    overlay.innerText = `${accuracy}%`;
+    
+    if (consecutiveCorrect >= REQUIRED_FRAMES) {
+       overlay.innerText = "100%";
+       overlay.classList.add('correct');
+       onCharCorrect();
+    } else {
+       overlay.classList.remove('correct');
     }
   }
 
-  function onCorrect() {
+  function onCharCorrect() {
     locked = true;
-    streak++;
-    correctCount++;
-    document.getElementById('practice-streak').textContent = streak;
-    App.addScore(10);
-    showResult('correct', ASL_CURRICULUM[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 2500);
-  }
-
-  function advance() {
-    currentIdx++;
-    locked             = false;
-    consecutiveCorrect = 0;
-    warmupFrames       = 0;
-    if (currentIdx >= ASL_CURRICULUM.length) { showComplete(); return; }
-    updateDisplay();
+    charIndex++;
+    if (charIndex >= targetChars.length) {
+      // Completed full item
+      let prog = JSON.parse(localStorage.getItem('asl_progress') || "{}");
+      if(!prog[currentModule]) prog[currentModule] = 0;
+      prog[currentModule] = Math.max(prog[currentModule], currentIndex + 1);
+      localStorage.setItem('asl_progress', JSON.stringify(prog));
+      
+      showPopup("Correct!", "Moving to next...", () => {
+         skip();
+      });
+    } else {
+      // Next char
+      setTimeout(() => {
+        consecutiveCorrect = 0;
+        locked = false;
+        updateUI();
+      }, 800);
+    }
   }
 
   function prev() {
-    if (currentIdx > 0) {
-      currentIdx--;
-      locked             = false;
-      consecutiveCorrect = 0;
-      warmupFrames       = 0;
-      updateDisplay();
-    }
+    if (currentIndex > 0) startItem(currentIndex - 1);
   }
 
   function skip() {
-    streak = 0;
-    document.getElementById('practice-streak').textContent = streak;
-    locked             = false;
-    consecutiveCorrect = 0;
-    warmupFrames       = 0;
-    advance();
+    if (currentIndex < CURRICULUM[currentModule].length - 1) {
+      startItem(currentIndex + 1);
+    } else {
+       showPopup("Module Complete!", "You have finished this module.", () => showMenu());
+    }
   }
 
-  function updateDisplay() {
-    const letter = ASL_CURRICULUM[currentIdx];
-    document.getElementById('practice-letter').textContent = letter;
-    document.getElementById('practice-svg').innerHTML      = makeImg(letter);
-
-    const pct = ((currentIdx + 1) / ASL_CURRICULUM.length * 100).toFixed(1);
-    document.getElementById('practice-progress').style.width = `${pct}%`;
-    document.getElementById('practice-counter').textContent  = `${currentIdx + 1} / ${ASL_CURRICULUM.length}`;
-    document.getElementById('practice-hint').textContent     = `Show the sign for "${letter}" to the camera`;
-    document.getElementById('practice-det-val').textContent  = '—';
-    document.getElementById('practice-det-val').className    = 'det-val';
-    document.getElementById('practice-detect-ring').className = 'detect-ring';
-  }
-
-  function setStatus(state) {
-    const badge = document.getElementById('practice-status');
-    badge.className  = `status-chip status-${state}`;
-    const labels = { waiting: 'Waiting', detecting: 'Detecting', correct: 'Correct!', wrong: 'Try Again' };
-    badge.textContent = labels[state] || state;
-  }
-
-  function showComplete() {
-    Camera.stop(MODE);
-    const overlay = document.getElementById('complete-overlay');
-    document.getElementById('complete-title').textContent = 'Practice Complete!';
-    document.getElementById('complete-sub').textContent   = 'You signed all 26 ASL letters!';
-    document.getElementById('complete-stats').innerHTML   = `
-      <div class="complete-stat"><div class="c-stat-num">${correctCount}</div><div class="c-stat-lbl">Signed</div></div>
-      <div class="complete-stat"><div class="c-stat-num">${streak}</div><div class="c-stat-lbl">Best Streak</div></div>
-    `;
-    document.getElementById('complete-retry').onclick = () => { overlay.classList.add('hidden'); start(); };
+  function showPopup(title, sub, callback) {
+    const overlay = document.getElementById('result-overlay');
+    document.getElementById('result-title').textContent = title;
+    document.getElementById('result-sub').textContent = sub;
+    document.getElementById('result-letter').textContent = "";
+    
     overlay.classList.remove('hidden');
+    
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      if (callback) callback();
+    }, 1500);
   }
 
-  return { start, cleanup, prev, skip };
+  window.Teaching = { start, stop, showMenu, selectModule, prev, skip };
+  return window.Teaching;
 })();
 
-const Test = (() => {
-  let currentIdx         = 0;
-  let correct            = 0;
-  let wrong              = 0;
-  let locked             = false;
-  let consecutiveMatch   = 0;  
-  let lastSeen           = null;
+// ---------------------------------------------------------
+// PRACTICING MODE
+// ---------------------------------------------------------
+const Practicing = (() => {
+  const MODE = 'practicing';
+  let active = false;
+  let sequence = [];
+  let currentIndex = 0;
   
-  const HOLD_NEEDED      = 6;  
-  let warmupFrames       = 0;
-  const WARMUP_NEEDED    = 12;
-
-  const MODE             = 'test';
-  let curriculum         = [];
-
-  function shuffle(arr) {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
+  let currentTarget = "";
+  let targetChars = [];
+  let charIndex = 0;
+  
+  let consecutiveCorrect = 0;
+  const REQUIRED_FRAMES = 5;
+  let maxTimeMs = 4000;
+  let timeRemaining = 4000;
+  let lastFrameTime = 0;
+  
+  let totalPoints = 0;
+  let possiblePoints = 0;
+  
+  let timerInterval = null;
+  let locked = false;
 
   function start() {
-    curriculum         = shuffle(ASL_CURRICULUM);
-    currentIdx         = 0;
-    correct            = 0;
-    wrong              = 0;
-    locked             = false;
-    consecutiveMatch   = 0;
-    lastSeen           = null;
-    warmupFrames       = 0;
-    updateDisplay();
+    active = true;
+    document.getElementById('nav-pts').style.display = 'flex';
+    document.getElementById('nav-score-val').innerText = '0';
+    
+    sequence = [];
+    totalPoints = 0;
+    possiblePoints = 0;
+    
+    const chars = [...CURRICULUM.characters];
+    shuffle(chars);
+    sequence.push(...chars.slice(0, 13));
+    
+    const words = [...CURRICULUM.words];
+    shuffle(words);
+    sequence.push(...words.slice(0, 5));
+    
+    const sentences = [...CURRICULUM.sentences];
+    shuffle(sentences);
+    sequence.push(...sentences.slice(0, 3));
+    
+    sequence.forEach(item => {
+        possiblePoints += item.replace(/ /g, '').length;
+    });
+    
+    document.getElementById('practicing-total-count').innerText = possiblePoints;
+    document.getElementById('practicing-correct-count').innerText = 0;
+    
+    currentIndex = 0;
+    startItem(currentIndex);
     initCamera();
+  }
+
+  function stop() {
+    active = false;
+    stopTimer();
+    Camera.stop(MODE);
+  }
+
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
   }
 
   async function initCamera() {
     const ok = await Camera.init(MODE);
-    if (!ok) { showCameraError(MODE); return; }
+    if (!ok) { console.error("Camera init failed"); return; }
     Camera.startDetection(MODE, handleDetection);
-    setStatus('detecting');
   }
 
-  function cleanup() {
-    Camera.stop(MODE);
+  function startItem(index) {
+    if (index >= sequence.length) {
+      finishSession();
+      return;
+    }
+    
+    currentIndex = index;
+    currentTarget = sequence[index];
+    targetChars = currentTarget.replace(/ /g, '').split('');
+    charIndex = 0;
     locked = false;
+    
+    updateItemUI();
+    startChar();
+  }
+  
+  function updateItemUI() {
+    document.getElementById('practicing-counter').innerText = `${currentIndex + 1} / 21`;
+    document.getElementById('practicing-progress').style.width = `${((currentIndex) / 21) * 100}%`;
+    document.getElementById('practicing-letter').innerText = currentTarget;
+    
+    const tfContainer = document.getElementById('practicing-textframes');
+    tfContainer.innerHTML = "";
+    targetChars.forEach((c, idx) => {
+      const sp = document.createElement('div');
+      sp.className = 'textframe';
+      sp.id = `prac-tf-${idx}`;
+      sp.innerText = c;
+      tfContainer.appendChild(sp);
+    });
+  }
+
+  function startChar() {
+    consecutiveCorrect = 0;
+    timeRemaining = maxTimeMs;
+    lastFrameTime = Date.now();
+    locked = false;
+    
+    targetChars.forEach((c, idx) => {
+        const sp = document.getElementById(`prac-tf-${idx}`);
+        if(sp) {
+             if (idx === charIndex) {
+                 sp.style.borderColor = "#3b82f6";
+                 sp.style.borderWidth = "2px";
+             } else if (!sp.classList.contains('correct') && !sp.classList.contains('error')) {
+                 sp.style.borderColor = "var(--border)";
+                 sp.style.borderWidth = "1px";
+             }
+        }
+    });
+
+    startTimer();
+    const hint = document.getElementById('practicing-timer-hint');
+    if (hint) {
+      hint.innerText = `Time left: ${(timeRemaining/1000).toFixed(1)}s`;
+      hint.style.color = "var(--text-secondary)";
+    }
+  }
+
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function startTimer() {
+    stopTimer();
+    lastFrameTime = Date.now();
+    timerInterval = setInterval(() => {
+      if(!active || locked) return;
+      const now = Date.now();
+      const delta = now - lastFrameTime;
+      lastFrameTime = now;
+      timeRemaining -= delta;
+      
+      const hint = document.getElementById('practicing-timer-hint');
+      
+      if (timeRemaining <= 0) {
+        timeRemaining = 0;
+        if (hint) hint.innerText = "Time's up!";
+        handleCharResult(false);
+      } else {
+        if (hint) {
+          hint.innerText = `Time left: ${(timeRemaining/1000).toFixed(1)}s`;
+          if (timeRemaining < 1500) {
+              hint.style.color = "#ef4444"; 
+          }
+        }
+      }
+    }, 50);
   }
 
   function handleDetection(result) {
-    if (locked) return;
+    if (!active || locked) return;
+    
+    const char = targetChars[charIndex];
+    if(!char) return;
 
-    const target   = curriculum[currentIdx];
-    const detVal   = document.getElementById('test-det-val');
-    const ring     = document.getElementById('test-detect-ring');
-    const camLabel = document.getElementById('test-cam-label');
+    const detVal = document.getElementById('practicing-det-val');
+    const statusChip = document.getElementById('practicing-status');
+    const ring = document.getElementById('practicing-detect-ring');
 
     if (!result.hand_detected || result.error) {
-      detVal.textContent   = '—';
-      detVal.className     = 'det-val';
-      ring.className       = 'detect-ring';
-      camLabel.textContent = `Show the sign for: ${target}`;
-      consecutiveMatch     = 0;
-      lastSeen             = null;
-      warmupFrames         = 0;
-      setStatus('detecting');
-      return;
-    }
-
-    if (warmupFrames < WARMUP_NEEDED) {
-      warmupFrames++;
-      ring.className       = 'detect-ring';
-      camLabel.textContent = 'Get ready...';
-      return;
-    }
-
-    const detected = result.label;
-    const conf     = result.confidence || 0;
-
-    ring.className       = 'detect-ring hand-found';
-    camLabel.textContent = detected ? `Seeing: ${detected} (${Math.round(conf * 100)}%)` : 'Hand detected';
-    detVal.textContent   = detected || '?';
-
-    if (!detected) {
-      consecutiveMatch = 0;
-      lastSeen         = null;
-      return;
-    }
-
-    if (detected === lastSeen) {
-      consecutiveMatch++;
+      detVal.innerText = "—";
+      statusChip.innerText = "No hand detected";
+      statusChip.className = "status-chip warning";
+      ring.className = "detect-ring warning";
+      consecutiveCorrect = Math.max(0, consecutiveCorrect - 1);
     } else {
-      consecutiveMatch = 1;
-      lastSeen         = detected;
-    }
-
-    if (detected === target) {
-      detVal.className = 'det-val match';
-      ring.className   = 'detect-ring correct';
-      setStatus('correct');
-    } else {
-      detVal.className = 'det-val no-match';
-      ring.className   = 'detect-ring hand-found';
-      setStatus('detecting');
-    }
-
-    if (consecutiveMatch >= HOLD_NEEDED) {
-      consecutiveMatch = 0;
-      lastSeen         = null;
-      if (detected === target) {
-        onCorrect();
+      detVal.innerText = result.label;
+      if (result.label && result.label.toUpperCase() === char.toUpperCase()) {
+        consecutiveCorrect++;
+        statusChip.innerText = `Detected ${char}! Hold...`;
+        statusChip.className = "status-chip success";
+        ring.className = "detect-ring success";
       } else {
-        onWrong();
+        consecutiveCorrect = Math.max(0, consecutiveCorrect - 1);
+        statusChip.innerText = "Keep trying...";
+        statusChip.className = "status-chip error";
+        ring.className = "detect-ring error";
       }
     }
+    
+    if (consecutiveCorrect >= REQUIRED_FRAMES) {
+       handleCharResult(true);
+    }
   }
-
-  function onCorrect() {
+  
+  function handleCharResult(correct) {
     locked = true;
-    correct++;
-    App.addScore(10);
-    updateScores();
-    showResult('correct', curriculum[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 2500);
+    
+    const tf = document.getElementById(`prac-tf-${charIndex}`);
+    if (correct) {
+      tf.classList.add('correct');
+      totalPoints++;
+      document.getElementById('practicing-correct-count').innerText = totalPoints;
+      document.getElementById('nav-score-val').innerText = totalPoints;
+    } else {
+      tf.classList.add('error');
+      tf.style.backgroundColor = "rgba(239, 68, 68, 0.1)";
+      tf.style.borderColor = "#ef4444";
+      tf.style.color = "#ef4444";
+    }
+    
+    charIndex++;
+    if (charIndex >= targetChars.length) {
+       showPopup(correct ? "Done!" : "Timed Out", "Moving to next item...", () => {
+           startItem(currentIndex + 1);
+       });
+    } else {
+       setTimeout(() => {
+         if(active) startChar();
+       }, 500);
+    }
   }
 
-  function onWrong() {
-    locked = true;
-    wrong++;
-    updateScores();
-    showResult('wrong', curriculum[currentIdx]);
-    setTimeout(() => { hideResult(); advance(); }, 2500);
-  }
-
-  function advance() {
-    currentIdx++;
-    locked           = false;
-    consecutiveMatch = 0;
-    lastSeen         = null;
-    warmupFrames     = 0;
-    if (currentIdx >= curriculum.length) { showComplete(); return; }
-    updateDisplay();
-  }
-
-  function updateDisplay() {
-    const letter = curriculum[currentIdx];
-    document.getElementById('test-letter').textContent = letter;
-
-    const pct = ((currentIdx + 1) / curriculum.length * 100).toFixed(1);
-    document.getElementById('test-progress').style.width  = `${pct}%`;
-    document.getElementById('test-counter').textContent   = `${currentIdx + 1} / ${curriculum.length}`;
-    document.getElementById('test-det-val').textContent   = '—';
-    document.getElementById('test-det-val').className     = 'det-val';
-    document.getElementById('test-detect-ring').className = 'detect-ring';
-    setStatus('detecting');
-  }
-
-  function updateScores() {
-    document.getElementById('test-correct-count').textContent = correct;
-    document.getElementById('test-wrong-count').textContent   = wrong;
-    document.getElementById('test-total-count').textContent   = correct + wrong;
-  }
-
-  function setStatus(state) {
-    const badge = document.getElementById('test-status');
-    badge.className   = `status-chip status-${state}`;
-    const labels = { waiting: 'Waiting', detecting: 'Detecting', correct: 'Correct!', wrong: 'Wrong' };
-    badge.textContent = labels[state] || state;
-  }
-
-  function showComplete() {
-    Camera.stop(MODE);
-    const accuracy = curriculum.length > 0 ? Math.round((correct / curriculum.length) * 100) : 0;
-    const overlay  = document.getElementById('complete-overlay');
-    document.getElementById('complete-title').textContent = 'Test Complete!';
-    document.getElementById('complete-sub').textContent   = `You completed all ${curriculum.length} letters!`;
-    document.getElementById('complete-stats').innerHTML   = `
-      <div class="complete-stat"><div class="c-stat-num">${correct}</div><div class="c-stat-lbl">Correct</div></div>
-      <div class="complete-stat"><div class="c-stat-num">${accuracy}%</div><div class="c-stat-lbl">Accuracy</div></div>
-      <div class="complete-stat"><div class="c-stat-num">${wrong}</div><div class="c-stat-lbl">Wrong</div></div>
-    `;
-    document.getElementById('complete-retry').onclick = () => { overlay.classList.add('hidden'); start(); };
+  function showPopup(title, sub, callback) {
+    const overlay = document.getElementById('result-overlay');
+    document.getElementById('result-title').textContent = title;
+    document.getElementById('result-sub').textContent = sub;
+    document.getElementById('result-letter').textContent = "";
+    
     overlay.classList.remove('hidden');
+    
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      if (callback) callback();
+    }, 1500);
+  }
+  
+  function finishSession() {
+      stop();
+      const overlay = document.getElementById('complete-overlay');
+      document.getElementById('complete-title').innerText = "Session Complete!";
+      document.getElementById('complete-sub').innerText = `You scored ${totalPoints} out of ${possiblePoints} points!`;
+      
+      let prog = JSON.parse(localStorage.getItem('asl_progress') || "{}");
+      prog.highscore = Math.max(prog.highscore || 0, totalPoints);
+      localStorage.setItem('asl_progress', JSON.stringify(prog));
+      
+      const stats = document.getElementById('complete-stats');
+      stats.innerHTML = `
+        <div class="complete-stat">
+          <div class="stat-num">${totalPoints}</div>
+          <div class="stat-lbl">Points</div>
+        </div>
+        <div class="complete-stat">
+          <div class="stat-num">${Math.round((totalPoints / possiblePoints)*100)}%</div>
+          <div class="stat-lbl">Accuracy</div>
+        </div>
+      `;
+      
+      document.getElementById('complete-retry').onclick = () => {
+         overlay.classList.add('hidden');
+         start();
+      };
+      
+      overlay.classList.remove('hidden');
   }
 
-  return { start, cleanup };
+  window.Practicing = { start, stop };
+  return window.Practicing;
 })();
 
-function showResult(type, letter) {
-  const overlay  = document.getElementById('result-overlay');
-  const icon     = document.getElementById('result-icon');
-  const title    = document.getElementById('result-title');
-  const sub      = document.getElementById('result-sub');
-  const letterEl = document.getElementById('result-letter');
+// Boot
+window.onload = async () => {
+  App.init();
 
-  if (type === 'correct') {
-    icon.textContent  = '✓';
-    icon.style.color  = '#15803d';
-    title.textContent = 'Correct!';
-    title.style.color = '#15803d';
-    sub.textContent   = 'Moving to next letter…';
-  } else {
-    icon.textContent  = '✗';
-    icon.style.color  = '#b91c1c';
-    title.textContent = 'Wrong';
-    title.style.color = '#b91c1c';
-    sub.textContent   = 'Moving to next letter…';
+  // Warm up the AI model to avoid the 6-second delay on first detection
+  try {
+    const dummyImg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+    await fetch('http://localhost:5000/api/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: dummyImg })
+    });
+  } catch (e) {
+    console.log("Warmup error", e);
+  } finally {
+    const overlay = document.getElementById('startup-overlay');
+    if (overlay) overlay.classList.add('hidden');
   }
-
-  letterEl.textContent = letter;
-  overlay.classList.remove('hidden');
-}
-
-function hideResult() {
-  document.getElementById('result-overlay').classList.add('hidden');
-}
-
-function showCameraError(mode) {
-  const label = document.getElementById(`${mode}-cam-label`);
-  if (label) {
-    label.textContent = '⚠ Camera access denied or unavailable';
-    label.style.color = '#b91c1c';
-  }
-}
-
-window.addEventListener('load', async () => {
-  const ok = await Camera.checkBackend().catch(() => false);
-  if (!ok) console.warn('Backend not reachable. Run: python backend/app.py');
-});
-
-window.App      = App;
-window.Practice = Practice;
-window.Test     = Test;
+};
