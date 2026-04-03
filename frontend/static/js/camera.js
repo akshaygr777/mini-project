@@ -100,9 +100,7 @@ const Camera = (() => {
 
         if (data && data.hand_detected && data.landmarks && data.landmarks.length) {
           drawLandmarks(overlay, data.landmarks);
-          if (data.label) {
-            drawConfidence(overlay, data.label, data.confidence, data.scores);
-          }
+
         }
       }
       rafIds[mode] = requestAnimationFrame(frame);

@@ -71,8 +71,10 @@ is_model_trained = False
 
 DATASET_PATH = os.path.join(os.path.dirname(__file__), 'asl_dataset.csv')
 
+train_X_dict = {}
+
 def load_and_train_model():
-    global is_model_trained
+    global is_model_trained, train_y, train_X_dict
     if not os.path.exists(DATASET_PATH):
         print(f"⚠️ Warning: Dataset not found at {DATASET_PATH}.")
         print("⚠️ The ML model won't predict letters until you run collect_data.py to create the dataset.")
@@ -89,7 +91,17 @@ def load_and_train_model():
 
     if X:
         knn_model.fit(X, y)
+        train_y = y
         is_model_trained = True
+        
+        train_X_dict.clear()
+        for feat, label in zip(X, y):
+            if label not in train_X_dict:
+                train_X_dict[label] = []
+            train_X_dict[label].append(feat)
+        for label in train_X_dict:
+            train_X_dict[label] = np.array(train_X_dict[label])
+
         print(f"✅ ML Model successfully trained on {len(X)} samples.")
 
 load_and_train_model()
@@ -99,22 +111,31 @@ class MotionTracker:
     def __init__(self, max_len=20):  # Increased buffer to smooth out quick jitters
         self.index_history = deque(maxlen=max_len)
         self.pinky_history = deque(maxlen=max_len)
+        self.frames_in_frame = 0
 
     def update(self, normalized_landmarks):
+        self.frames_in_frame += 1
         # 8 is Index Tip, 20 is Pinky Tip
         self.index_history.append(normalized_landmarks[8])
         self.pinky_history.append(normalized_landmarks[20])
 
+    def clear(self):
+        self.index_history.clear()
+        self.pinky_history.clear()
+        self.frames_in_frame = 0
+
     def detect_z_motion(self):
         # Wait until we have enough frames to make a confident decision
-        if len(self.index_history) < 15: return False
+        # Also wait for a short delay after hand enters frame to ignore initial positioning
+        if len(self.index_history) < 15 or self.frames_in_frame < 30: return False
         xs = [p[0] for p in self.index_history]
         
         # INCREASED THRESHOLD: Requires a much wider, deliberate zigzag (was 0.40)
         return (max(xs) - min(xs)) > 0.70
 
     def detect_j_motion(self):
-        if len(self.pinky_history) < 15: return False
+        # Ignore initial positioning movement
+        if len(self.pinky_history) < 15 or self.frames_in_frame < 30: return False
         xs = [p[0] for p in self.pinky_history]
         ys = [p[1] for p in self.pinky_history]
         
@@ -188,6 +209,7 @@ def detect():
 
     if not results.multi_hand_landmarks:
         gesture_smoother.update(None)
+        motion_tracker.clear()
         return jsonify({"label": None, "confidence": 0.0, "landmarks": [], "hand_detected": False})
 
     lm = results.multi_hand_landmarks[0]
@@ -200,21 +222,37 @@ def detect():
     motion_tracker.update(normalized_3d)
 
     raw_label = None
+    scores = {}
+    confidence = 0.0
+
     if is_model_trained:
         flat_features = np.array(flatten_landmarks(normalized_3d)).reshape(1, -1)
         raw_label = knn_model.predict(flat_features)[0]
+        
+        # Calculate accuracy score for all alphabets by measuring how near the 
+        # current coordinates are to the closest correct coordinates of each alphabet
+        for lbl, feats in train_X_dict.items():
+            dists = np.linalg.norm(feats - flat_features[0], axis=1)
+            min_dist = np.min(dists)
+            # Convert Euclidean distance to a continuous 0.0 - 1.0 accuracy score
+            score = max(0.0, min(1.0, 1.0 - (min_dist - 0.15)))
+            scores[lbl] = float(score)
 
         if raw_label in ['D', '1', 'X'] and motion_tracker.detect_z_motion():
             raw_label = 'Z'
+            scores['Z'] = max([scores.get(base, 0.0) for base in ['D', '1', 'X']])
         elif raw_label in ['I', 'Y'] and motion_tracker.detect_j_motion():
             raw_label = 'J'
+            scores['J'] = max([scores.get(base, 0.0) for base in ['I', 'Y']])
 
     stable_label = gesture_smoother.update(raw_label)
+    confidence = scores.get(stable_label, 0.0) if stable_label else 0.0
 
     return jsonify({
         "label": stable_label,
         "raw_label": raw_label,
-        "confidence": 0.9 if stable_label else 0.0,
+        "confidence": confidence,
+        "scores": scores,
         "landmarks": pixel_2d,  
         "hand_detected": True
     })

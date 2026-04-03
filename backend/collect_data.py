@@ -50,7 +50,7 @@ with open(DATASET_FILE, 'a', newline='') as f:
         key = cv2.waitKey(1) & 0xFF
         if key == 27: # ESC
             break
-        elif 97 <= key <= 122: # Lowercase a-z
+        elif 48 <= key <= 122: # Lowercase a-z
             if 'results' in locals() and results.multi_hand_landmarks:
                 char = chr(key).upper()
                 row = [char] + flat_data

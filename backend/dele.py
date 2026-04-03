@@ -37,7 +37,7 @@ if __name__ == "__main__":
     letter = input("Enter the letter you want to delete (A-Z): ").strip().upper()
     
     # Just a quick safety check
-    if len(letter) == 1 and letter.isalpha():
+    if len(letter) == 1 or letter.isalpha():
         confirm = input(f"Are you sure you want to delete all '{letter}' samples? (y/n): ").strip().lower()
         if confirm == 'y':
             delete_letter(letter)

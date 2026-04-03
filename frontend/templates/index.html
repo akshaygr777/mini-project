@@ -20,8 +20,8 @@
         <h1 class="home-title">Learn to<br><em>fingerspell</em><br>in ASL</h1>
         <p class="home-sub">Practice all 26 letters of the ASL alphabet with your webcam. Get instant feedback as you sign.</p>
         <div class="home-btns">
-          <button class="btn-fill" onclick="App.navigate('teaching')">Start Teaching</button>
-          <button class="btn-ghost" onclick="App.navigate('practicing')">Start Practicing</button>
+          <button class="btn-fill" onclick="App.navigate('teaching')">Start learning</button>
+          <button class="btn-ghost" onclick="App.navigate('practicing')">Take a test</button>
         </div>
         <div class="home-pills">
           <span class="pill">📷 Live Detection</span>
@@ -147,11 +147,7 @@
           <div class="accuracy-overlay hidden" id="teaching-accuracy-overlay">0%</div>
         </div>
 
-        <div class="det-bar">
-          <span class="det-label">Detected</span>
-          <span class="det-val" id="teaching-det-val">—</span>
-          <span class="det-status" id="teaching-status-side"></span>
-        </div>
+
       </div>
 
     </div>
@@ -212,10 +208,7 @@
           <div class="cam-badge" id="practicing-cam-label">Show the sign</div>
         </div>
 
-        <div class="det-bar">
-          <span class="det-label">Detected</span>
-          <span class="det-val" id="practicing-det-val">—</span>
-        </div>
+
       </div>
 
     </div>
