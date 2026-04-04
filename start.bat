@@ -1,8 +1,8 @@
 @echo off
 echo.
-echo   ╔══════════════════════════════════════════╗
-echo   ║   SignPath — ASL Learning Platform       ║
-echo   ╚══════════════════════════════════════════╝
+echo   ''''''''''''''''''''''''''''''''''''''''''''
+echo   '   SignPath - ASL Learning Platform       '
+echo   ''''''''''''''''''''''''''''''''''''''''''''
 echo.
 
 echo [1/2] Installing dependencies...
