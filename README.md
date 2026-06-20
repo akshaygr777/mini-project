@@ -147,6 +147,6 @@ Covers all 26 ASL letters (A–Z). Numbers (0–9) removed.
 - Hold the sign steady for ~1 second
 
 ##Team members
-###Akshay G R
-###Amal Dev M L
-###Aneesh Mon
+### Akshay G R
+### Amal Dev M L
+### Aneesh Mon
