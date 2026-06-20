@@ -145,3 +145,8 @@ Covers all 26 ASL letters (A–Z). Numbers (0–9) removed.
 - Use good lighting (face a light source)
 - Keep your hand within the green frame corners
 - Hold the sign steady for ~1 second
+
+##Team members
+###Akshay G R
+###Amal Dev M L
+###Aneesh Mon
